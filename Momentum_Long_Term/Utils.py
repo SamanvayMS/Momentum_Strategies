@@ -374,7 +374,7 @@ class Analytics():
         df['cumulative_returns'] = (df.returns+1).cumprod()
         df['account_drawdown'] = (df.portfolio_value.cummax()-df.portfolio_value)
         df['drawdown_pct'] = df.account_drawdown/df.portfolio_value.cummax()
-        df['uitilisation_ratio'] = df.investment_value/df.portfolio_value
+        df['utilisation_ratio'] = df.investment_value/df.portfolio_value
         
     def create_all_stats(self):
         for df in self.dfs:
@@ -514,20 +514,24 @@ class Analytics():
             
         return var, cvar
 
-        
     def plot_individual_graphs(self,df,title):
-        fig, ax = plt.subplots(2, 1, figsize=(20, 20))
-        ax[0].plot(df.portfolio_value,label='Portfolio Value')
-        ax[0].plot(df.trading_cost,label='Trading Cost')
-        ax[0].plot(df.account_drawdown,label='Account Drawdown')
+        fig, ax = plt.subplots(3, 1, figsize=(20, 20))
+        ax[0].plot(df.cumulative_returns - 1,label='Cumulative Returns')
+        ax[0],plot(self.index_df.cumulative_returns - 1,label='Index')
+        ax[0].plot(-df.drawdown_pct,label='Drawdown')
         ax[0].set_title(title)
-        ax[0].set_ylabel('Portfolio Value')
+        ax[0].set_ylabel('returns vs drawdowns')
         ax[0].legend()
         
-        ax[1].plot(df.utilisation_ratio,label='Utilisation Ratio')
+        ax[1].plot(df.utilisation_ratio[1:],label='Utilisation Ratio')
         ax[1].set_ylabel('Utilisation Ratio')
         ax[1].set_xlabel('Date')
         ax[1].legend()
+        
+        ax[2].plot(df.trading_cost,label='Trading Cost')
+        ax[2].set_ylabel('Trading Cost')
+        ax[2].set_xlabel('Date')
+        ax[2].legend()
         
         fig.tight_layout()
         fig.show()
@@ -539,18 +543,20 @@ class Analytics():
         
     def yearly_metrics(self,plot = False):
         yearly_performance = {}
-        yearly_performance['equal_returns'] = self.equal_returns.portfolio_value.resample('Y').last().pct_change()[1:]
-        yearly_performance['max_sharpe_ratio'] = self.max_sharpe_ratio.portfolio_value.resample('Y').last().pct_change()[1:]
-        yearly_performance['min_variance'] = self.min_variance.portfolio_value.resample('Y').last().pct_change()[1:]
+        yearly_performance['equal_returns'] = self.equal_returns.portfolio_value.resample('Y').last().pct_change()
+        yearly_performance['max_sharpe_ratio'] = self.max_sharpe_ratio.portfolio_value.resample('Y').last().pct_change()
+        yearly_performance['min_variance'] = self.min_variance.portfolio_value.resample('Y').last().pct_change()
+        yearly_performance['index'] = self.index_df.portfolio_value.resample('Y').last().pct_change()
         yearly_performance = pd.DataFrame(yearly_performance)
-        yearly_performance.index = yearly_performance.index.year
+        # yearly_performance.index = yearly_performance.index.year
         
         max_drawdown = {}
-        max_drawdown['equal_returns'] = self.equal_returns.account_drawdown.resample('Y').max()
-        max_drawdown['max_sharpe_ratio'] = self.max_sharpe_ratio.account_drawdown.resample('Y').max()
-        max_drawdown['min_variance'] = self.min_variance.account_drawdown.resample('Y').max()
+        max_drawdown['equal_returns'] = self.equal_returns.account_drawdown.resample('Y').max()/self.equal_returns.portfolio_value.resample('Y').first()
+        max_drawdown['max_sharpe_ratio'] = self.max_sharpe_ratio.account_drawdown.resample('Y').max()/self.max_sharpe_ratio.portfolio_value.resample('Y').first()
+        max_drawdown['min_variance'] = self.min_variance.account_drawdown.resample('Y').max()/self.min_variance.portfolio_value.resample('Y').first()
+        max_drawdown['index'] = self.index_df.account_drawdown.resample('Y').max()/self.index_df.portfolio_value.resample('Y').first()
         max_drawdown = pd.DataFrame(max_drawdown)
-        max_drawdown.index = max_drawdown.index.year
+        # max_drawdown.index = max_drawdown.index.year
         
         if plot:
             # Plotting
@@ -562,7 +568,7 @@ class Analytics():
 
             # Plot for negated data
             for column in max_drawdown.columns:
-                plt.plot(max_drawdown.index, max_drawdown[column], label=f"max drawdowns for {column}", linestyle='--', marker='x')
+                plt.plot(max_drawdown.index, -max_drawdown[column], label=f"max drawdowns for {column}", linestyle='--', marker='x')
 
             plt.title('Comparison of Investment Strategies Over Years')
             plt.xlabel('Year')

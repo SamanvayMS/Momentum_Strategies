@@ -155,7 +155,6 @@ Where:
 
 - **CVaR (Conditional Value at Risk)**: Also known as Expected Shortfall, it provides an average of the losses that exceed the VaR in the tail of the distribution of potential returns. CVaR gives a sense of the worst-case scenario beyond the VaR, offering a more comprehensive view of tail risk.
 
-
 ## Results and Discussion
 
 ### 3.1 Performance Analysis
