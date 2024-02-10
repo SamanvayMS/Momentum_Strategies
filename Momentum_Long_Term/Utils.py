@@ -4,6 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import datetime as dt
 import scipy.optimize as sc
+import seaborn as sns
+from IPython.display import display
 yf.pdr_override()
     
 class Strategy():
@@ -455,12 +457,12 @@ class Analytics():
         VaR , CVaR = self.monte_carlo_simulation(returns, plot = plot_monte_carlo, title = title)
 
         return {
+            'Annualized Return': annualized_return,
             'Max Drawdown': max_drawdown,
+            'Volatility': volatility,
             'Sharpe Ratio': sharpe_ratio,
             'Sortino Ratio': sortino_ratio,
             'Calmar Ratio': calmar_ratio,
-            'Annualized Return': annualized_return,
-            'Volatility': volatility,
             'VaR': VaR,
             'CVaR': CVaR
         }
@@ -473,7 +475,7 @@ class Analytics():
         metrics['Index'] = self.calculate_financial_metrics(self.index_df,plot_monte_carlo, 'Index')
         metrics_df = pd.DataFrame(metrics)
         if print:
-            plt.table(cellText=metrics_df.values, colLabels=metrics_df.columns, rowLabels=metrics_df.index, loc='center')
+            self.Display_metrics_df(metrics_df)
         return metrics_df
     
     def monte_carlo_simulation(self,returns, title, num_simulations=10000,plot = False):
@@ -515,23 +517,26 @@ class Analytics():
         return var, cvar
 
     def plot_individual_graphs(self,df,title):
-        fig, ax = plt.subplots(3, 1, figsize=(20, 20))
+        fig, ax = plt.subplots(4, 1, figsize=(20, 20))
         ax[0].plot(df.cumulative_returns - 1,label='Cumulative Returns')
-        ax[0],plot(self.index_df.cumulative_returns - 1,label='Index')
-        ax[0].plot(-df.drawdown_pct,label='Drawdown')
+        ax[0].plot(self.index_df.cumulative_returns - 1,label='Index')
         ax[0].set_title(title)
-        ax[0].set_ylabel('returns vs drawdowns')
+        ax[0].set_ylabel('returns')
         ax[0].legend()
         
-        ax[1].plot(df.utilisation_ratio[1:],label='Utilisation Ratio')
-        ax[1].set_ylabel('Utilisation Ratio')
-        ax[1].set_xlabel('Date')
+        ax[1].plot(-df.drawdown_pct,label='Drawdown')
+        ax[1].set_ylabel('drawdown')
         ax[1].legend()
         
-        ax[2].plot(df.trading_cost,label='Trading Cost')
-        ax[2].set_ylabel('Trading Cost')
+        ax[2].plot(df.utilisation_ratio[1:],label='Utilisation Ratio')
+        ax[2].set_ylabel('Utilisation Ratio')
         ax[2].set_xlabel('Date')
         ax[2].legend()
+        
+        ax[3].plot(df.trading_cost,label='Trading Cost')
+        ax[3].set_ylabel('Trading Cost')
+        ax[3].set_xlabel('Date')
+        ax[3].legend()
         
         fig.tight_layout()
         fig.show()
@@ -541,40 +546,94 @@ class Analytics():
         self.plot_individual_graphs(self.max_sharpe_ratio,'Max Sharpe Ratio')
         self.plot_individual_graphs(self.min_variance,'Min Variance')
         
-    def yearly_metrics(self,plot = False):
+    def yearly_metrics(self,plot = False,print = True):
         yearly_performance = {}
-        yearly_performance['equal_returns'] = self.equal_returns.portfolio_value.resample('Y').last().pct_change()
-        yearly_performance['max_sharpe_ratio'] = self.max_sharpe_ratio.portfolio_value.resample('Y').last().pct_change()
-        yearly_performance['min_variance'] = self.min_variance.portfolio_value.resample('Y').last().pct_change()
-        yearly_performance['index'] = self.index_df.portfolio_value.resample('Y').last().pct_change()
+        yearly_performance['equal_returns'] = self.equal_returns.portfolio_value.resample('Y').last().pct_change()[1:]
+        yearly_performance['max_sharpe_ratio'] = self.max_sharpe_ratio.portfolio_value.resample('Y').last().pct_change()[1:]
+        yearly_performance['min_variance'] = self.min_variance.portfolio_value.resample('Y').last().pct_change()[1:]
+        yearly_performance['index'] = self.index_df.portfolio_value.resample('Y').last().pct_change()[1:]
         yearly_performance = pd.DataFrame(yearly_performance)
-        # yearly_performance.index = yearly_performance.index.year
+        yearly_performance.index = yearly_performance.index.year
         
         max_drawdown = {}
-        max_drawdown['equal_returns'] = self.equal_returns.account_drawdown.resample('Y').max()/self.equal_returns.portfolio_value.resample('Y').first()
-        max_drawdown['max_sharpe_ratio'] = self.max_sharpe_ratio.account_drawdown.resample('Y').max()/self.max_sharpe_ratio.portfolio_value.resample('Y').first()
-        max_drawdown['min_variance'] = self.min_variance.account_drawdown.resample('Y').max()/self.min_variance.portfolio_value.resample('Y').first()
-        max_drawdown['index'] = self.index_df.account_drawdown.resample('Y').max()/self.index_df.portfolio_value.resample('Y').first()
+        max_drawdown['equal_returns'] = self.equal_returns.drawdown_pct.resample('Y').max()[1:]
+        max_drawdown['max_sharpe_ratio'] = self.max_sharpe_ratio.drawdown_pct.resample('Y').max()[1:]
+        max_drawdown['min_variance'] = self.min_variance.drawdown_pct.resample('Y').max()[1:]
+        max_drawdown['index'] = self.index_df.drawdown_pct.resample('Y').max()[1:]
         max_drawdown = pd.DataFrame(max_drawdown)
-        # max_drawdown.index = max_drawdown.index.year
+        max_drawdown.index = max_drawdown.index.year
         
-        if plot:
-            # Plotting
-            plt.figure(figsize=(14, 8))
-
-            # Plot for original data
-            for column in yearly_performance.columns:
-                plt.plot(yearly_performance.index, yearly_performance[column], label=f"yearly performance for {column}", marker='o')
-
-            # Plot for negated data
-            for column in max_drawdown.columns:
-                plt.plot(max_drawdown.index, -max_drawdown[column], label=f"max drawdowns for {column}", linestyle='--', marker='x')
-
-            plt.title('Comparison of Investment Strategies Over Years')
-            plt.xlabel('Year')
-            plt.ylabel('Strategy Performance')
-            plt.legend()
-            plt.grid(True)
-            plt.show()
+        if plot: 
+            self.plot_yearly_metrics(yearly_performance, max_drawdown)
+            
+        if print:
+            print('Yearly Returns')
+            self.Display_yearly_df(yearly_performance)
+            print('Yearly Max Drawdown')
+            self.Display_yearly_df(max_drawdown, reversed = True)
             
         return yearly_performance,max_drawdown
+    
+    def plot_yearly_metrics(self,yearly_performance, max_drawdown):
+        # Generate Plots
+        plt.figure(figsize=(20, 10))
+
+        # Plotting each column
+        for column in yearly_performance.columns:
+            sns.lineplot(data=yearly_performance[column], label=column + 'return',markers= True)
+        for column in max_drawdown.columns:
+            sns.lineplot(data=-max_drawdown[column], label=column + ' drawdown',markers=True, linestyle="dashed")
+            
+        plt.hlines(0, yearly_performance.index[0], yearly_performance.index[-1], linestyles='dashed', color='black',alpha = 0.5)
+
+        plt.title('Yearly Performance Metrics')
+        plt.xlabel('Year')
+        plt.ylabel('Value')
+        plt.legend()
+        plt.show()
+        
+    def Display_metrics_df(self,df):
+        df.loc[["Max Drawdown", "Annualized Return", "Volatility", "VaR", "CVaR"], :] = df.loc[["Max Drawdown", "Annualized Return", "Volatility", "VaR", "CVaR"], :].apply(lambda x: x * 100)
+        df.loc[['Max Drawdown'],:] = -df.loc[['Max Drawdown'],:]
+
+        # Apply conditional formatting
+        def highlight_max_min(s):
+            is_max = s == s.max()
+            is_min = s == s.min()
+            return ['background-color: rgba(255, 0, 0, 0.2)' if v else 'background-color: rgba(0, 255, 0, 0.2)' if m else '' for v, m in zip(is_min, is_max)]
+        def highlight_min_max(s):
+            is_max = s == s.max()
+            is_min = s == s.min()
+            return ['background-color: rgba(0, 255, 0, 0.2)' if m else 'background-color: rgba(255, 0, 0, 0.2)' if v else '' for m, v in zip(is_min, is_max)]
+            
+        def apply_styles(df):
+            reversed_styling = ['Max Drawdown','Volatility', 'VaR', 'CVaR']
+            formatted_numbers = ['Annualized Return', 'Max Drawdown','Volatility', 'VaR', 'CVaR']
+            df = df.style.apply(highlight_max_min, axis=1)\
+                .apply(highlight_min_max, axis=1, subset=pd.IndexSlice[reversed_styling, :])\
+                .format("{:.2%}", subset=pd.IndexSlice[formatted_numbers, :])
+            return df
+
+        # Applying the styles
+        styled_df = apply_styles(df)
+        display(styled_df)
+        
+    def Display_yearly_df(self,df,reversed = False):
+        def highlight_max_min(s):
+            is_max = s == s.max()
+            is_min = s == s.min()
+            return ['background-color: rgba(255, 0, 0, 0.2)' if v else 'background-color: rgba(0, 255, 0, 0.2)' if m else '' for v, m in zip(is_min, is_max)]
+        def highlight_min_max(s):
+            is_max = s == s.max()
+            is_min = s == s.min()
+            return ['background-color: rgba(0, 255, 0, 0.2)' if m else 'background-color: rgba(255, 0, 0, 0.2)' if v else '' for m, v in zip(is_min, is_max)]
+
+        # Apply the styling
+        if reversed:
+            styled_df = df.style.apply(highlight_min_max, axis=1)\
+                .format("{:.2%}")
+        else:
+            styled_df = df.style.apply(highlight_max_min, axis=1) \
+                .format("{:.2%}")
+
+        display(styled_df)
